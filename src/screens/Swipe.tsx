@@ -1,8 +1,7 @@
 import React, {useState} from 'react';
 
 import styled from 'styled-components/native';
-import Card from '../components/SwipeCard';
-import SwipeProvider from '../components/SwipeContext';
+import {SwipeContext, SwipeCard} from 'components/Swipe';
 
 const colors = ['#ca054d', '#3b1c32', '#74BE8D', '#B96D40'];
 
@@ -22,7 +21,7 @@ const SwipeCardScreen = () => {
   return (
     <Center>
       <SafeArea>
-        <SwipeProvider>
+        <SwipeContext>
           {toRender.map(({name, backgroundColor}, idx) => {
             const reversedIdx = toRender.length - idx - 1;
 
@@ -38,7 +37,7 @@ const SwipeCardScreen = () => {
               </StyledCard>
             );
           })}
-        </SwipeProvider>
+        </SwipeContext>
       </SafeArea>
     </Center>
   );
@@ -60,7 +59,7 @@ const Center = styled.View`
   justify-content: center;
 `;
 
-const StyledCard = styled(Card)`
+const StyledCard = styled(SwipeCard)`
   align-items: center;
   justify-content: center;
 
