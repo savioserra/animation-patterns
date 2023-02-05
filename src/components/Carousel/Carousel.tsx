@@ -12,6 +12,7 @@ import Animated, {
   SharedValue,
   AnimateProps,
   Extrapolate,
+  cancelAnimation,
 } from 'react-native-reanimated';
 import styled from 'styled-components/native';
 import {clamp} from 'utils';
@@ -45,6 +46,9 @@ const Carousel = <T,>({
   }, [values, height, posY]);
 
   const gesture = Gesture.Pan()
+    .onBegin(() => {
+      cancelAnimation(posY);
+    })
     .onUpdate(e => {
       const newPosY = initialY.value + e.translationY;
       const clampedY = clamp([-(height * (values.length - 1)), newPosY, 0]);
@@ -57,14 +61,16 @@ const Carousel = <T,>({
 
       posY.value = clampedY;
     })
-    .onEnd(() => {
+    .onFinalize(() => {
       const index = Math.trunc(currentIndex.value);
       const restingPosition =
         -(index + (currentIndex.value > index + 0.5 ? 1 : 0)) * height;
 
-      initialY.value = restingPosition;
-      posY.value = withSpring(restingPosition, {stiffness: 62});
       overshoot.value = withTiming(0, {easing: Easing.inOut(Easing.cubic)});
+      posY.value = withSpring(restingPosition, {stiffness: 62}, f => {
+        initialY.value = posY.value;
+        console.log({f});
+      });
     });
 
   const innerContainerStyle = useAnimatedStyle(() => {

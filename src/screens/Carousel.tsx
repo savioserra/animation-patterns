@@ -15,6 +15,7 @@ const CarouselScreen = () => {
       contentContainerStyle={{flex: 1}}
       showsVerticalScrollIndicator={false}>
       <Carousel
+        height={300}
         values={sample}
         getSource={it => ({uri: it.url})}
         keyExtractor={it => String(it.id)}
