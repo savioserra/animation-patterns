@@ -67,9 +67,8 @@ const Carousel = <T,>({
         -(index + (currentIndex.value > index + 0.5 ? 1 : 0)) * height;
 
       overshoot.value = withTiming(0, {easing: Easing.inOut(Easing.cubic)});
-      posY.value = withSpring(restingPosition, {stiffness: 62}, f => {
+      posY.value = withSpring(restingPosition, {stiffness: 62}, () => {
         initialY.value = posY.value;
-        console.log({f});
       });
     });
 
@@ -97,12 +96,13 @@ const Carousel = <T,>({
           ))}
         </Animated.View>
 
-        <DotsContainer>
-          {values.map((_, idx) => (
+        <DotsContainer pointerEvents="none">
+          {values.map((it, idx) => (
             <RenderDot
               index={idx}
+              key={keyExtractor(it)}
               indexProgress={currentIndex}
-              style={[{marginTop: idx > 0 ? 8 : 0}]}
+              style={{marginTop: idx > 0 ? 8 : 0}}
             />
           ))}
         </DotsContainer>
