@@ -18,19 +18,29 @@ const App = () => {
     <GestureHandlerRoot>
       <NavigationContainer>
         <DrawerStack.Navigator
-          initialRouteName="Carousel"
+          initialRouteName="Swipe"
           screenOptions={{
             sceneContainerStyle: {
               backgroundColor: scheme === 'light' ? 'white' : 'black',
             },
           }}>
-          <DrawerStack.Screen name="SwipeCards" component={SwipeCardScreen} />
-          <DrawerStack.Screen name="Carousel" component={CarouselScreen} />
+          <DrawerStack.Screen
+            name="Swipe"
+            component={SwipeCardScreen}
+            options={{title: 'Cards'}}
+          />
+
+          <DrawerStack.Screen
+            name="Carousel"
+            component={CarouselScreen}
+            options={{title: 'Carousel'}}
+          />
         </DrawerStack.Navigator>
       </NavigationContainer>
     </GestureHandlerRoot>
   );
 };
+
 const GestureHandlerRoot = styled(GestureHandlerRootView)`
   flex: 1;
 `;
