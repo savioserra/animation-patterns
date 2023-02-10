@@ -2,46 +2,65 @@ import React from 'react';
 import {ImageProps} from 'react-native';
 import Animated, {
   AnimateProps,
-  SharedValue,
+  useAnimatedProps,
   useAnimatedStyle,
 } from 'react-native-reanimated';
 
+import {useCarouselContext} from './Carousel';
+
 const CarouselImage = ({
   end,
-  first,
+  start,
   source,
-  height,
-  overshoot,
+  index,
+  style,
   ...props
 }: CarouselImageProps) => {
+  const {animatedIndex, overshoot, height, width} = useCarouselContext();
+
   const imageStyle = useAnimatedStyle(() => {
-    if (end && overshoot.value < 0) {
-      return {height: height + overshoot.value};
+    if ((end && overshoot.value < 0) || (start && overshoot.value > 0)) {
+      return {height: height + Math.abs(overshoot.value), width};
     }
 
-    if (first && overshoot.value > 0) {
-      return {height: height + overshoot.value};
+    return {height, width};
+  }, [overshoot, start, end, height, width]);
+
+  const animatedProps = useAnimatedProps<ImageProps>(() => {
+    let isVisible = false;
+    const indexValue = animatedIndex.value;
+
+    if (start) {
+      isVisible = indexValue < index + 1;
+    } else if (end) {
+      isVisible = indexValue > index - 1;
+    } else {
+      isVisible = indexValue > index - 1 && indexValue < index + 1;
     }
 
-    return {height};
-  }, [overshoot, first, end, height]);
+    return {
+      accessibilityElementsHidden: !isVisible,
+      accessible: index === animatedIndex.value,
+    };
+  }, [animatedIndex, index, end, start]);
 
   return (
     <Animated.Image
       {...props}
+      {...animatedProps}
       source={source}
       resizeMode="cover"
       resizeMethod="scale"
-      style={[imageStyle]}
+      accessibilityRole="image"
+      style={[style, imageStyle]}
     />
   );
 };
 
 export type CarouselImageProps = AnimateProps<ImageProps> & {
-  first: boolean;
   end: boolean;
-  height: number;
-  overshoot: SharedValue<number>;
+  start: boolean;
+  index: number;
 };
 
 export default CarouselImage;

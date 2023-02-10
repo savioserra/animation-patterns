@@ -1,169 +1,196 @@
-import React from 'react';
-import {ImageSourcePropType, View} from 'react-native';
+import {identity} from 'lodash';
+import React, {useContext} from 'react';
+import {ImageSourcePropType} from 'react-native';
 import {Gesture, GestureDetector} from 'react-native-gesture-handler';
 import Animated, {
   useSharedValue,
   useDerivedValue,
   interpolate,
-  withSpring,
   withTiming,
   Easing,
   useAnimatedStyle,
   SharedValue,
-  AnimateProps,
-  Extrapolate,
-  cancelAnimation,
 } from 'react-native-reanimated';
+import {useWindowDimensions} from 'react-native/Libraries/Utilities/Dimensions';
 import styled from 'styled-components/native';
 import {clamp} from 'utils';
 import CarouselImage from './CarouselImage';
+import Dot from './Dot';
 
 export interface CarouselProps<T> {
-  values: T[];
+  data: T[];
+  width?: number;
   height?: number;
-  overshootFactor?: number;
   keyExtractor: (v: T) => string;
-  getSource: (v: T) => ImageSourcePropType;
+  sourceExtractor?: (v: T) => ImageSourcePropType;
+  settings?: Partial<CarouselSettings>;
 }
 
+export type CarouselSettings = {
+  overshootFactor: number;
+  overshootWeight: number;
+  actionsAreaFactor: number;
+  fastSwipeThreshold: number;
+  duration: number;
+};
+
+export type CarouselContextValue = {
+  posY: SharedValue<number>;
+  overshoot: SharedValue<number>;
+  animatedIndex: SharedValue<number>;
+  height: number;
+  width: number;
+};
+
 const Carousel = <T,>({
-  values,
-  getSource,
-  keyExtractor,
-  height = 300,
-  overshootFactor = 0.15,
+  data,
+  settings,
+  width: widthProp,
+  keyExtractor = String,
+  sourceExtractor = identity,
+  height = 420,
 }: CarouselProps<T>) => {
+  const {
+    overshootFactor,
+    overshootWeight,
+    actionsAreaFactor,
+    fastSwipeThreshold,
+  } = {...defaultSettings, ...settings};
+
+  const {width: windowWidth} = useWindowDimensions();
+  const width = widthProp ?? windowWidth;
+
   const posY = useSharedValue(0);
   const initialY = useSharedValue(0);
   const overshoot = useSharedValue(0);
 
-  const currentIndex = useDerivedValue(() => {
+  const animateToIndex = (index: number) => {
+    'worklet';
+    const nextIndex = clamp(0, index, data.length - 1);
+
+    posY.value = withTiming(
+      nextIndex * -height,
+      {duration: 320},
+      () => (initialY.value = posY.value),
+    );
+  };
+
+  const animatedIndex = useDerivedValue(() => {
     return interpolate(
       Math.abs(posY.value),
-      values.map((_, idx) => idx * height),
-      values.map((_, idx) => idx),
+      data.map((_, idx) => idx * height),
+      data.map((_, idx) => idx),
     );
-  }, [values, height, posY]);
+  }, [data, height, posY]);
 
-  const gesture = Gesture.Pan()
-    .onBegin(() => {
-      cancelAnimation(posY);
-    })
+  const tapGesture = Gesture.Tap().onEnd(({y}) => {
+    const nextIndex = Math.trunc(animatedIndex.value);
+
+    if (y <= height * actionsAreaFactor) {
+      animateToIndex(nextIndex - 1);
+    }
+
+    if (y >= height - height * actionsAreaFactor) {
+      animateToIndex(nextIndex + 1);
+    }
+  });
+
+  const panGesture = Gesture.Pan()
     .onUpdate(e => {
       const newPosY = initialY.value + e.translationY;
-      const clampedY = clamp([-(height * (values.length - 1)), newPosY, 0]);
-
-      overshoot.value = clamp([
-        -height * overshootFactor,
-        newPosY - clampedY,
-        height * overshootFactor,
-      ]);
+      const clampedY = clamp(-(height * (data.length - 1)), newPosY, 0);
+      const max = height * overshootFactor;
+      const currentOvershoot = newPosY - clampedY;
 
       posY.value = clampedY;
+      overshoot.value = clamp(-max, currentOvershoot / overshootWeight, max);
     })
-    .onFinalize(() => {
-      const index = Math.trunc(currentIndex.value);
-      const restingPosition =
-        -(index + (currentIndex.value > index + 0.5 ? 1 : 0)) * height;
+    .onEnd(({velocityY}) => {
+      const currentIndex = Math.trunc(animatedIndex.value);
+      let nextIndex = currentIndex;
+
+      if (Math.abs(velocityY) >= fastSwipeThreshold) {
+        nextIndex -= Math.sign(velocityY);
+      } else {
+        nextIndex += currentIndex + 1 - animatedIndex.value <= 0.5 ? 1 : 0;
+      }
 
       overshoot.value = withTiming(0, {easing: Easing.inOut(Easing.cubic)});
-      posY.value = withSpring(restingPosition, {stiffness: 62}, () => {
-        initialY.value = posY.value;
-      });
+      animateToIndex(nextIndex);
     });
 
   const innerContainerStyle = useAnimatedStyle(() => {
-    return {transform: [{translateY: posY.value}], height: height};
+    const translateY = posY.value + (overshoot.value < 0 ? overshoot.value : 0);
+    return {transform: [{translateY}], height};
   }, [posY, overshoot, height]);
 
-  const containerStyle = useAnimatedStyle(() => {
+  const viewportStyle = useAnimatedStyle(() => {
     return {height: height + overshoot.value, overflow: 'hidden'};
   }, [overshoot, height]);
 
   return (
-    <GestureDetector gesture={gesture}>
-      <Animated.View style={containerStyle}>
-        <Animated.View style={[innerContainerStyle]}>
-          {values.map((it, idx) => (
-            <CarouselImage
-              height={height}
-              first={idx === 0}
-              overshoot={overshoot}
-              source={getSource(it)}
-              key={keyExtractor(it)}
-              end={idx === values.length - 1}
-            />
-          ))}
-        </Animated.View>
+    <CarouselProvider value={{animatedIndex, height, overshoot, posY, width}}>
+      <GestureDetector gesture={Gesture.Race(panGesture, tapGesture)}>
+        <Animated.View
+          style={viewportStyle}
+          accessible
+          accessibilityActions={[
+            {name: 'next', label: 'Next'},
+            {name: 'previous', label: 'Previous'},
+          ]}
+          onAccessibilityAction={({nativeEvent: {actionName}}) => {
+            animateToIndex(
+              Math.trunc(animatedIndex.value) + actionName === 'previous'
+                ? -1
+                : 1,
+            );
+          }}>
+          <Animated.View style={innerContainerStyle}>
+            {data.map((it, idx) => (
+              <CarouselImage
+                index={idx}
+                start={idx === 0}
+                key={keyExtractor(it)}
+                source={sourceExtractor(it)}
+                end={idx === data.length - 1}
+              />
+            ))}
+          </Animated.View>
 
-        <DotsContainer pointerEvents="none">
-          {values.map((it, idx) => (
-            <RenderDot
-              index={idx}
-              key={keyExtractor(it)}
-              indexProgress={currentIndex}
-              style={{marginTop: idx > 0 ? 8 : 0}}
-            />
-          ))}
-        </DotsContainer>
-      </Animated.View>
-    </GestureDetector>
+          <DotsContainer pointerEvents="none">
+            {data.map((it, idx) => (
+              <Dot
+                index={idx}
+                key={keyExtractor(it)}
+                style={{marginTop: idx > 0 ? 4 : 0}}
+              />
+            ))}
+          </DotsContainer>
+        </Animated.View>
+      </GestureDetector>
+    </CarouselProvider>
   );
 };
 
-const RenderDot = ({
-  indexProgress,
-  index,
-  style,
-}: {
-  index: number;
-  indexProgress: SharedValue<number>;
-  style?: AnimateProps<View>['style'];
-}) => {
-  const dotStyle = useAnimatedStyle(() => {
-    const config = {
-      extrapolateLeft: Extrapolate.CLAMP,
-      extrapolateRight: Extrapolate.CLAMP,
-    };
-
-    if (index === 0) {
-      return {
-        height: interpolate(
-          indexProgress.value,
-          [0, index + 1],
-          [16, 4],
-          config,
-        ),
-      };
-    }
-
-    return {
-      height: interpolate(
-        indexProgress.value,
-        [index - 1, index, index + 1],
-        [4, 16, 4],
-        config,
-      ),
-    };
-  }, [indexProgress, index]);
-
-  return <Dot style={[dotStyle, style]} />;
+const defaultSettings: CarouselSettings = {
+  duration: 320,
+  overshootWeight: 10,
+  overshootFactor: 0.15,
+  actionsAreaFactor: 0.3,
+  fastSwipeThreshold: 300,
 };
 
-const DotsContainer = styled.View`
+const DotsContainer = styled(Animated.View)`
   position: absolute;
-  bottom: 24px;
-  right: 12px;
-
-  height: 100px;
+  bottom: 40px;
+  right: 40px;
   justify-content: flex-end;
 `;
 
-const Dot = styled(Animated.View)`
-  height: 4px;
-  width: 4px;
-  border-radius: 10px;
-  background-color: white;
-`;
+const CarouselContext = React.createContext({} as CarouselContextValue);
+
+export const useCarouselContext = () => useContext(CarouselContext);
+
+export const CarouselProvider = CarouselContext.Provider;
 
 export default Carousel;
