@@ -58,7 +58,8 @@ const Dot = ({index, style}: {index: number; style?: StyleProps}) => {
 const DotContainer = styled(Animated.View)`
   height: 6px;
   width: 6px;
-  border-radius: 99;
+  border-radius: 99px;
+  background-color: white;
 `;
 
 export default Dot;

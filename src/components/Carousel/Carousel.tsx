@@ -11,7 +11,7 @@ import Animated, {
   useAnimatedStyle,
   SharedValue,
 } from 'react-native-reanimated';
-import {useWindowDimensions} from 'react-native/Libraries/Utilities/Dimensions';
+import {useWindowDimensions} from 'react-native';
 import styled from 'styled-components/native';
 import {clamp} from 'utils';
 import CarouselImage from './CarouselImage';
@@ -55,6 +55,7 @@ const Carousel = <T,>({
     overshootWeight,
     actionsAreaFactor,
     fastSwipeThreshold,
+    duration,
   } = {...defaultSettings, ...settings};
 
   const {width: windowWidth} = useWindowDimensions();
@@ -70,7 +71,7 @@ const Carousel = <T,>({
 
     posY.value = withTiming(
       nextIndex * -height,
-      {duration: 320},
+      {duration},
       () => (initialY.value = posY.value),
     );
   };
@@ -177,7 +178,7 @@ const defaultSettings: CarouselSettings = {
   overshootWeight: 10,
   overshootFactor: 0.15,
   actionsAreaFactor: 0.3,
-  fastSwipeThreshold: 300,
+  fastSwipeThreshold: 500,
 };
 
 const DotsContainer = styled(Animated.View)`

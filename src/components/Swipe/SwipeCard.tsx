@@ -53,6 +53,7 @@ const Card = ({
   const ref = useAnimatedRef<Animated.View>();
 
   const panGesture = Gesture.Pan()
+    .enabled(!disabled)
     .onUpdate(event => {
       y.value = event.translationY;
       x.value = event.translationX;
@@ -123,23 +124,19 @@ const Card = ({
     };
   }, [x, y, pos]);
 
-  const card = (
-    <CardContainer
-      ref={ref}
-      focusable
-      accessible
-      entering={FadeIn}
-      accessibilityRole="button"
-      style={[animatedStyle, style]}>
-      {children}
-    </CardContainer>
+  return (
+    <GestureDetector gesture={panGesture}>
+      <CardContainer
+        ref={ref}
+        focusable
+        accessible
+        entering={FadeIn}
+        accessibilityRole="button"
+        style={[animatedStyle, style]}>
+        {children}
+      </CardContainer>
+    </GestureDetector>
   );
-
-  if (disabled) {
-    return card;
-  }
-
-  return <GestureDetector gesture={panGesture}>{card}</GestureDetector>;
 };
 
 const CardContainer = styled(Animated.View)`
